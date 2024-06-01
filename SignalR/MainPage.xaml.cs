@@ -1,5 +1,10 @@
 ﻿using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Text.Json;
+using System.Timers;
 
 namespace SignalR
 {
@@ -9,38 +14,79 @@ namespace SignalR
         public MainPage()
         {
             InitializeComponent();
+
+
             _connection = new HubConnectionBuilder().WithUrl("https://dev-api-glps-o-i-com.azurewebsites.net/dockAndYardHub?group=4650", x => {
 
                 x.AccessTokenProvider = () => Task.FromResult(token);
-               // x.Transports = HttpTransportType.None;
+
                 x.Transports = HttpTransportType.WebSockets | HttpTransportType.ServerSentEvents | HttpTransportType.LongPolling;
-                x.UseDefaultCredentials = true;
-                x.Headers.Add("Authorization", "Bearer " + token);
+                x.HttpMessageHandlerFactory = (handler) =>
+                {
+                    if (handler is HttpClientHandler httpClientHandler)
+                        httpClientHandler.MaxRequestContentBufferSize = 1024 * 1024 * 1;
+                    return handler;
+                };
+            }).ConfigureLogging(logging =>
+            {
+                logging.AddDebug();
+                logging.SetMinimumLevel(LogLevel.Trace);
+            }).AddJsonProtocol(options =>
+            {
+                options.PayloadSerializerOptions.PropertyNamingPolicy = null;
             }).Build();
 
-           // _connection = new HubConnectionBuilder().WithUrl("http://192.168.1.13:5296/chat").Build();
-            //MessageReceived
-            _connection.On<object>("DockAndYardClient", (message) =>
+
+            //_connection = new HubConnectionBuilder().WithUrl("http://192.168.1.4:5296/chat", x => {
+
+            //    //x.AccessTokenProvider = () => Task.FromResult(token);
+            //    //x.Transports = HttpTransportType.WebSockets | HttpTransportType.ServerSentEvents | HttpTransportType.LongPolling;
+            //    //x.HttpMessageHandlerFactory = (handler) =>
+            //    //{
+            //    //    if (handler is HttpClientHandler httpClientHandler)
+            //    //    {
+            //    //        httpClientHandler.MaxRequestContentBufferSize = 1024 * 1024 * 1; // 10 MB (por ejemplo)
+            //    //    }
+            //    //    return handler;
+            //    //};
+            //}).ConfigureLogging(logging =>
+            //{
+            //    logging.AddDebug();
+            //    logging.SetMinimumLevel(LogLevel.Trace);
+            //}).AddJsonProtocol(options =>
+            //{
+            //    options.PayloadSerializerOptions.PropertyNamingPolicy = null;
+            //}).Build();
+
+            //_connection.On<object,object>("MessageReceived", (dsd,o) =>
+            //{
+            //    Mjs(dsd);
+            //});
+            _connection.On<Dock[], Yard[]>("DockAndYardClient", (docks,yards) =>
             {
-              
+                try
+                {
+                   string d = JsonSerializer.Serialize(docks);
+                    string y = JsonSerializer.Serialize(yards);
+                   
+                }
+                catch (Exception EX)
+                {
+
+                }
+               
+                //Mjs(dsd);
             });
-           
-                Task.Run(async () =>
+
+            Task.Run(async () =>
                 {
                     try
                     {
-                         _connection.StartAsync().Wait();
-
-                        if(_connection.ConnectionId != string.Empty)
-                        {
-                            await Task.Delay(4000);
-
-                        }
-                           
+                       await  _connection.StartAsync();
                         int sd = 3;
                     }
                     catch (Exception ex)
-                        {
+                    {
 
                     }
                    
@@ -48,13 +94,77 @@ namespace SignalR
 
             
         }
-        string token = "eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJmOWIwMGE0ZS1hNTMwLTRjZDgtODFlZi1lMTIwMzhmY2FiNDEiLCJuYW1lIjoiSnVhbiBDYW1pbG8gSG9sZ3VpbiBQZXJleiIsImVtYWlscyI6WyJjYW1pbG8wMDFAZW1haWwuY29tIl0sInRmcCI6IkIyQ18xX2Rldi1HTFBTLWZsb3ciLCJzY3AiOiJhY2Nlc3NfYXNfdXNlciIsImF6cCI6ImEzMzE1OGI2LTNjOWYtNGNkZS05NjYxLTY5OWM5YjY2NDEyZSIsInZlciI6IjEuMCIsImlhdCI6MTcxNzAyMTA4MCwiYXVkIjoiNzc3ODA5NTktODU4YS00NDJkLWJlYWQtOTVhODgxNWJiOGE4IiwiZXhwIjoxNzE3MDI0NjgwLCJpc3MiOiJodHRwczovL29pZGV2YWRiMmMuYjJjbG9naW4uY29tLzE3ZDMzYjYxLTAyNGYtNDc2Yy05NmFiLWYxZWIwMjVjNGQxNy92Mi4wLyIsIm5iZiI6MTcxNzAyMTA4MH0.C26qQ57FVJUOZgEs-tNS3U0vYW6e0cnjnVfXJnfOFDB7cvqjJpaIKVQRq_4l2qBSUU_NFs2Sk91N1RTp-lF0Yddy1u7NAH3vubA29s0Onmi1-OLj6PSdK6E-7-WoKIWEeab1D9-a2R5Aj5vJroXOYQH5FVvYRVz1B4Caa0Vf5FEQLbdBjrkVqfdX3z2WDhlLCxKSzwx_xt2vtIsxh_gApGZLY9FAn8PNDuj9Pv3eJ-f_O36QiHsguT1CLu_I_R-gq-socxI_6TW03CzohWtsmnfAJ2PyWIExUq3LlJZEFOIKce62f2lBLUOT0Lm8sFgzfep6X5xzoZy_xt_h4qxKOw";
+
+        private void Mjs(object dsd)
+        {
+           
+        }
+
+
+
+        string token = "eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJmOWIwMGE0ZS1hNTMwLTRjZDgtODFlZi1lMTIwMzhmY2FiNDEiLCJuYW1lIjoiSnVhbiBDYW1pbG8gSG9sZ3VpbiBQZXJleiIsImVtYWlscyI6WyJjYW1pbG8wMDFAZW1haWwuY29tIl0sInRmcCI6IkIyQ18xX2Rldi1HTFBTLWZsb3ciLCJub25jZSI6ImRlZmF1bHROb25jZSIsInNjcCI6ImFjY2Vzc19hc191c2VyIiwiYXpwIjoiYTMzMTU4YjYtM2M5Zi00Y2RlLTk2NjEtNjk5YzliNjY0MTJlIiwidmVyIjoiMS4wIiwiaWF0IjoxNzE3MjY0ODc4LCJhdWQiOiI3Nzc4MDk1OS04NThhLTQ0MmQtYmVhZC05NWE4ODE1YmI4YTgiLCJleHAiOjE3MTcyNjg0NzgsImlzcyI6Imh0dHBzOi8vb2lkZXZhZGIyYy5iMmNsb2dpbi5jb20vMTdkMzNiNjEtMDI0Zi00NzZjLTk2YWItZjFlYjAyNWM0ZDE3L3YyLjAvIiwibmJmIjoxNzE3MjY0ODc4fQ.ZttpC00zb5lKjESg9toM7cuAQ_59xL8AXCg5bAcV3qGBeA01DOsoNI94hVZUjJgOStclcp6vQ6uL7_2_ZpPWE0Q43_CYM_H6etfUUa-MWSzKRm5PpwW1tIs-5FqSP5n81RRLM_qF9khevB1Hh6Q2TglcWsHWOjFKOCxdMWQJSokjA6nkWr3lrk8zHo7Ebh4z32Cv_YGbjoA-90M_G7vlvDJCkmOaCo7PHfrHxC5U0KayZsdY8DCg88EWT18vAk0fepbNMQq8cWKKJMyJIjRSPG9D8V7coQfonfH8eCeS5kvZar_piwoPt2RIGjr9kFN3hMSAU2Aua3RRKzgXvHJQzA";
+       
         private async void OnCounterClicked(object sender, EventArgs e)
         {
-            await _connection.InvokeCoreAsync("SendMessage", args: new[] {"asdas" });
+            try
+            {
+                var c = _connection.State;
+                await _connection.StopAsync();
+                var co = _connection.State;
+            }
+            catch (Exception ex)
+            {
 
-
+            }
+            
         }
     }
+    public class Shipment
+    {
+        public string id { get; set; }
+        public int shipmentId { get; set; }
+    }
 
+    public class Dock
+    {
+        public int id { get; set; }
+        public string identity { get; set; }
+        public string name { get; set; }
+        public string management { get; set; }
+        public int dockStatusId { get; set; }
+        public object dockStatusName { get; set; }
+        public int materialGroupId { get; set; }
+        public object materialGroupName { get; set; }
+        public int storageBuildingId { get; set; }
+        public string storageBuildingName { get; set; }
+        public bool busy { get; set; }
+        public string equipment { get; set; }
+        public Shipment shipment { get; set; }
+        public DateTime? timestamp { get; set; }
+    }
+
+    public class Yard
+    {
+        public int id { get; set; }
+        public string section { get; set; }
+        public string identity { get; set; }
+        public string name { get; set; }
+        public string management { get; set; }
+        public int warehouseId { get; set; }
+        public int yardStatusId { get; set; }
+        public object yardStatusName { get; set; }
+        public int materialGroupId { get; set; }
+        public object materialGroupName { get; set; }
+        public int storageBuildingId { get; set; }
+        public string storageBuildingName { get; set; }
+        public bool busy { get; set; }
+        public Shipment shipment { get; set; }
+        public DateTime? timestamp { get; set; }
+    }
+
+    public class RootObject
+    {
+        public List<Dock> docks { get; set; }
+        public List<Yard> yards { get; set; }
+    }
 }
